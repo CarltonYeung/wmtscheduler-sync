@@ -1,6 +1,10 @@
-import datetime
+from datetime import datetime, timedelta
 import os.path
+import re
 
+from typing import Tuple
+
+from model import Event
 from pdf_regex_finder import PDFRegexFinder
 
 from google.auth.transport.requests import Request
@@ -11,9 +15,11 @@ from googleapiclient.errors import HttpError
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
+SHIFT_LENGTH_HOURS = 8
+FLEX_HOURS = 0.5
 
 
-def get_calendar_id(service, name: str):
+def get_calendar_id(service, name: str) -> str:
     page_token = None
     while True:
         calendar_list = service.calendarList().list(pageToken=page_token).execute()
@@ -25,7 +31,7 @@ def get_calendar_id(service, name: str):
             break
 
 
-def main():
+def get_credentials() -> Credentials:
     creds = None
     # The file token.json stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
@@ -43,6 +49,19 @@ def main():
         with open("token.json", "w") as token:
             token.write(creds.to_json())
 
+    return creds
+
+
+def get_shift_start_end(event: Event) -> Tuple[datetime, datetime]:
+    start = event.date + timedelta(hours=int(re.search(r"(\d+)", event.shift).group()))
+    start -= timedelta(hours=FLEX_HOURS)
+    end = start + timedelta(hours=SHIFT_LENGTH_HOURS)
+    return start, end
+
+
+def main():
+    creds = get_credentials()
+
     events = PDFRegexFinder.find_events("./schedule.pdf")
 
     try:
@@ -56,7 +75,7 @@ def main():
                 .list(
                     calendarId=calendar_id,
                     timeMin=event.date.isoformat(),
-                    timeMax=(event.date + datetime.timedelta(days=1)).isoformat(),
+                    timeMax=(event.date + timedelta(days=1)).isoformat(),
                 )
                 .execute()
             )
@@ -72,15 +91,16 @@ def main():
 
             # Insert new event
             if event.shift != "X":
+                start, end = get_shift_start_end(event)
                 body = {
                     "summary": event.shift,
-                    "start": {"date": event.date.strftime("%Y-%m-%d")},
-                    "end": {"date": event.date.strftime("%Y-%m-%d")},
+                    "start": {"dateTime": start.isoformat()},
+                    "end": {"dateTime": end.isoformat()},
                 }
                 created_event = (
                     service.events().insert(calendarId=calendar_id, body=body).execute()
                 )
-                print(f"Event created: {created_event}")
+                print(f"Event created: {created_event['htmlLink']}")
 
     except HttpError as error:
         print("An error occurred: %s" % error)
