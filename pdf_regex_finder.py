@@ -38,7 +38,7 @@ class PDFRegexFinder:
             """,
             (re.VERBOSE | re.MULTILINE),
         )
-        matches = PDFRegexFinder.find_matches("./schedule.pdf", REGEX)
+        matches = PDFRegexFinder.find_matches(filename, REGEX)
 
         events = []
 
