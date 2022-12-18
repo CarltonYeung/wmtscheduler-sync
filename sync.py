@@ -19,6 +19,7 @@ SCOPES = ["https://www.googleapis.com/auth/calendar"]
 SHIFT_LENGTH_HOURS = 8
 ADMIN_SHIFT_LENGTH_HOURS = 8.5
 FLEX_HOURS = 0.5
+CALENDAR_NAME = "WMT Scheduler"
 
 
 def get_calendar_id(service, name: str) -> str:
@@ -79,7 +80,7 @@ def main():
 
         try:
             service = build("calendar", "v3", credentials=creds)
-            calendar_id = get_calendar_id(service, "WMT Scheduler")
+            calendar_id = get_calendar_id(service, CALENDAR_NAME)
 
             for event in events:
                 # Delete existing events
