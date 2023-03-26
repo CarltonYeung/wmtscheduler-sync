@@ -43,11 +43,8 @@ def get_credentials() -> Credentials:
         creds = Credentials.from_authorized_user_file("token.json", SCOPES)
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-            creds = flow.run_local_server(port=0)
+        flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+        creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
         with open("token.json", "w") as token:
             token.write(creds.to_json())
@@ -83,7 +80,7 @@ def main():
             calendar_id = get_calendar_id(service, CALENDAR_NAME)
 
             for event in events:
-                # Delete existing events
+                # Delete existing event
                 existing_event = (
                     service.events()
                     .list(
