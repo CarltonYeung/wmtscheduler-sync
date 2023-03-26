@@ -1,3 +1,4 @@
+import configparser
 import glob
 import os.path
 import re
@@ -19,7 +20,9 @@ SCOPES = ["https://www.googleapis.com/auth/calendar"]
 SHIFT_LENGTH_HOURS = 8
 ADMIN_SHIFT_LENGTH_HOURS = 8.5
 FLEX_HOURS = 0.5
-CALENDAR_NAME = "WMT Scheduler"
+CONFIG_CALENDAR_NAME = "GoogleCalendarName"
+CONFIG_CREDENTIALS_FILE = "GoogleOAuthCredentials"
+CONFIG_PDF_GLOB = "SchedulePDFGlobPattern"
 
 
 def get_calendar_id(service, name: str) -> str:
@@ -34,19 +37,20 @@ def get_calendar_id(service, name: str) -> str:
             break
 
 
-def get_credentials() -> Credentials:
+def get_credentials(CONFIG_CREDENTIALS_FILE: str) -> Credentials:
+    CACHED_TOKEN_FILE = "token.json"
     creds = None
     # The file token.json stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+    if os.path.exists(CACHED_TOKEN_FILE):
+        creds = Credentials.from_authorized_user_file(CACHED_TOKEN_FILE, SCOPES)
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
-        flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+        flow = InstalledAppFlow.from_client_secrets_file(CONFIG_CREDENTIALS_FILE, SCOPES)
         creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
-        with open("token.json", "w") as token:
+        with open(CACHED_TOKEN_FILE, "w") as token:
             token.write(creds.to_json())
 
     return creds
@@ -68,16 +72,39 @@ def get_shift_start_end(event: Event) -> Tuple[datetime, datetime]:
         raise ShiftCalculationError
 
 
-def main():
-    creds = get_credentials()
+def get_config() -> configparser.SectionProxy:
+    SETTINGS_FILE = "settings.ini"
 
-    for file in glob.glob("/mnt/c/Users/Carlton/Downloads/My Schedule*.pdf"):
+    config = configparser.ConfigParser()
+    config.optionxform = str
+    if not os.path.exists(SETTINGS_FILE):
+        config["DEFAULT"] = {
+            CONFIG_CALENDAR_NAME: "WMT Scheduler",
+            CONFIG_CREDENTIALS_FILE: "credentials.json",
+            CONFIG_PDF_GLOB: "./My Schedule*.pdf",
+        }
+
+        with open(SETTINGS_FILE, "w") as config_file:
+            config.write(config_file)
+
+    config.read(SETTINGS_FILE)
+    print("Using settings.ini:")
+    for key in config["DEFAULT"]:
+        print(f"{key}: {config['DEFAULT'][key]}")
+    return config["DEFAULT"]
+
+
+def main():
+    config = get_config()
+    creds = get_credentials(config[CONFIG_CREDENTIALS_FILE])
+
+    for file in glob.glob(config[CONFIG_PDF_GLOB]):
 
         events = PDFRegexFinder.find_events(file)
 
         try:
             service = build("calendar", "v3", credentials=creds)
-            calendar_id = get_calendar_id(service, CALENDAR_NAME)
+            calendar_id = get_calendar_id(service, config[CONFIG_CALENDAR_NAME])
 
             for event in events:
                 # Delete existing event
