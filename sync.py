@@ -56,20 +56,20 @@ def get_credentials(CONFIG_CREDENTIALS_FILE: str) -> Credentials:
     return creds
 
 
-class ShiftCalculationError(Exception):
-    pass
-
-
 def get_shift_start_end(event: Event) -> Tuple[datetime, datetime]:
+    start, end = None, None
+
     try:
         start = event.date + timedelta(hours=int(re.search(r"(\d+)", event.shift).group()))
         start -= timedelta(hours=FLEX_HOURS)
         end = start + timedelta(
             hours=ADMIN_SHIFT_LENGTH_HOURS if "@" in event.shift else SHIFT_LENGTH_HOURS
         )
-        return start, end
     except:
-        raise ShiftCalculationError
+        start = event.date
+        end = start
+
+    return start, end
 
 
 def get_config() -> configparser.SectionProxy:
@@ -128,23 +128,20 @@ def main():
                     #     print(f"Deleted: {existing_event}")
 
                 # Insert new event
-                try:
-                    start, end = get_shift_start_end(event)
-                    body = {
-                        "summary": event.shift,
-                        "start": {"dateTime": start.isoformat()},
-                        "end": {"dateTime": end.isoformat()},
-                    }
-                    created_event = (
-                        service.events()
-                        .insert(calendarId=calendar_id, body=body)
-                        .execute()
-                    )
-                    if created_event:
-                        print(f"Created: {event.shift} on {start}")
+                start, end = get_shift_start_end(event)
+                body = {
+                    "summary": event.shift,
+                    "start": {"dateTime": start.isoformat()},
+                    "end": {"dateTime": end.isoformat()},
+                }
+                created_event = (
+                    service.events()
+                    .insert(calendarId=calendar_id, body=body)
+                    .execute()
+                )
+                if created_event:
+                    print(f"Created: {event.shift} on {start}")
 
-                except ShiftCalculationError:
-                    print(f"Skipping: {event.shift} on {event.date}")
 
         except HttpError as error:
             print("An error occurred: %s" % error)
