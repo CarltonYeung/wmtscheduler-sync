@@ -1,5 +1,5 @@
 # wmtscheduler-sync
-One-way sync from WMT Scheduler to Google Calendar
+One-way sync from WMT Scheduler to Google Calendar using the PDF exported from WMT Scheduler. This app does not require access to your login credentials!
 
 ## Quickstart
 
